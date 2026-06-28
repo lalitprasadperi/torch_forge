@@ -16,6 +16,7 @@ The philosophy: **don't just read about PyTorch, build tools with it.** Every ca
 | [**2**](Capstone2/) | 🏋️ **Mini Training Framework** | nn.Module, Trainer, DataLoader, AMP, Grad Accum, Checkpointing | ✅ Complete |
 | [**3**](Capstone3/) | 🧠 **Rebuild the Transformer** | Attention, MHA, FFN, Residual, RoPE, RMSNorm, SwiGLU, FlashAttention, KV Cache | ✅ Complete |
 | [**4**](Capstone4/) | ⚙️ **PyTorch Compiler Deep Dive** | torch.compile, TorchDynamo, FX Graph, AOTAutograd, Inductor, Triton Kernels, CUDA Graphs, Kernel Fusion | ✅ Complete |
+| [**5**](Capstone5/) | 🚀 **Build a Mini vLLM** | PagedAttention, Continuous Batching, KV Block Manager, Prefill/Decode, Triton Decode Kernel, INT8/NF4 Quantization, Streaming, OpenAI API | ✅ Complete |
 
 ---
 
@@ -290,9 +291,173 @@ python benchmarks/fusion_bench.py
 
 ---
 
+## 🚀 Capstone 5 — Build a Mini vLLM
+
+> **Goal:** Implement a complete LLM inference engine from scratch, replicating the core innovations of [vLLM](https://arxiv.org/abs/2309.06180) (Kwon et al., 2023): paged KV cache, continuous batching, prefill/decode separation, and a fused Triton attention kernel.
+
+### What you build
+
+A fully functional inference engine (`engine/`) that can serve multiple concurrent requests with paged memory management, streaming output, INT8/NF4 quantization, and an OpenAI-compatible REST API.
+
+### System architecture
+
+```
+Request (text)
+  ↓
+LLMEngine.add_request()
+  ↓
+Scheduler.schedule()       ← continuous batching, preemption (swap/recompute)
+  ↓                ↓
+BlockManager            SchedulerOutput
+(KV pages)            (which seqs run this step, which blocks to swap)
+  ↓
+ModelRunner.execute_model()
+  ↓              ↓
+_run_prefill()   _run_decode()   ← separate forward passes
+  ↓
+PagedGPT.forward()
+  ↓
+write_to_cache() + paged_attention_decode()   ← scatter/gather over block tables
+  ↓
+Sampler (greedy / top-k / top-p / rep penalty)
+  ↓
+RequestOutput (streaming)
+```
+
+### Learning path
+
+```
+kv_cache_tour.py  →  scheduler_tour.py  →  inference_tour.py  →  examples/
+      📦                    🗓️                     🔬                 🏃
+  Why paging?           Continuous          Prefill vs Decode      15 runnable
+  Fragmentation         Batching &          Roofline Model         examples
+  PagedAttention        Preemption          Full engine demo
+```
+
+### Directory structure
+
+```
+Capstone5/
+├── engine/
+│   ├── sequence.py        ← Sequence state machine, SchedulerOutput
+│   ├── kv_cache.py        ← BlockManager, PhysicalBlock, BlockAllocator
+│   ├── scheduler.py       ← Continuous batching, swap/recompute preemption
+│   ├── model_runner.py    ← Batch tensor prep, prefill/decode dispatch
+│   └── llm_engine.py      ← add_request → step → stream/generate
+├── model/
+│   ├── config.py          ← ModelConfig (nano/gpt2_small), CacheConfig, SamplingParams
+│   ├── gpt.py             ← PagedGPT: RMSNorm, SwiGLU FFN, paged attention
+│   └── paged_attention.py ← write_to_cache, paged_attention_decode/prefill
+├── kernels/
+│   └── paged_attn_triton.py  ← Fused Triton decode kernel (online softmax)
+├── sampling/
+│   └── sampler.py         ← Greedy, top-k, top-p, repetition penalty
+├── quantization/
+│   └── int8_quant.py      ← INT8 symmetric, NF4 (QLoRA-style), KV cache quant
+├── server/
+│   ├── protocol.py        ← OpenAI-compatible Pydantic schemas
+│   └── api_server.py      ← FastAPI: /v1/completions, /v1/chat/completions, SSE
+├── benchmarks/
+│   ├── throughput.py      ← Tokens/sec vs batch size sweep
+│   └── latency.py         ← TTFT, TPOT, E2E latency breakdown
+├── tours/
+│   ├── kv_cache_tour.py   ← 7 lessons: memory fragmentation → PagedAttention
+│   ├── scheduler_tour.py  ← 6 lessons: static → continuous batching, preemption
+│   └── inference_tour.py  ← 6 lessons: prefill/decode roofline, full engine demo
+├── examples/              ← 15 runnable focused demos (one concept each)
+└── generate.py            ← CLI: generate text with streaming
+```
+
+### Quick start
+
+```bash
+cd Capstone5
+source /home/jmd/venvs/rtx2000/bin/activate
+
+# ── Tours (concept-first) ─────────────────────────────────────────────────────
+python tours/kv_cache_tour.py        # why paging? fragmentation → PagedAttention
+python tours/scheduler_tour.py       # static vs continuous batching, preemption
+python tours/inference_tour.py       # prefill vs decode, roofline, full demo
+
+# ── Model smoke tests ─────────────────────────────────────────────────────────
+python model/gpt.py                  # PagedGPT prefill + decode smoke test
+python model/paged_attention.py      # write_to_cache + paged_attention_decode verify
+
+# ── Generate text ─────────────────────────────────────────────────────────────
+python generate.py --prompt "Hello" --max-tokens 50 --stream
+
+# ── Examples (one concept each) ───────────────────────────────────────────────
+python examples/01_hello_engine.py         # full engine in 30 lines
+python examples/03_multi_request_batching.py  # 3 concurrent requests
+python examples/05_block_table_inspector.py   # live block table visualization
+python examples/07_preemption_demo.py         # preemption under memory pressure
+python examples/11_paged_attention_verify.py  # correctness vs standard attention
+python examples/12_triton_paged_attention.py  # Triton kernel: 8.5× speedup at B=16
+python examples/13_quantization_compare.py    # fp16 vs INT8 vs NF4 accuracy + size
+
+# ── Benchmarks ────────────────────────────────────────────────────────────────
+python -m benchmarks.throughput --batch-sizes 1 4 8 16
+python -m benchmarks.latency --prompt-lens 16 64 256
+
+# ── API server ────────────────────────────────────────────────────────────────
+pip install fastapi uvicorn
+python server/api_server.py
+curl http://localhost:8000/v1/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "nano", "prompt": "Hello", "max_tokens": 50}'
+```
+
+### Sample benchmark output
+
+```
+Throughput (nano model, fp16, RTX PRO 2000)
+  Batch     Tokens/s
+  ───────────────────
+      1          819
+      4         1723
+      8         2174
+     16         2566   ← 3.1× vs batch=1
+
+Latency
+  Prompt    TTFT      TPOT     E2E
+  ─────────────────────────────────
+      16    1.9ms    1.1ms   71ms
+      64    5.0ms    1.1ms   75ms    ← TTFT scales (compute-bound)
+     256   17.2ms    1.1ms   88ms    ← TPOT flat (memory-bound)
+```
+
+### Core concepts
+
+| Concept | Analogy | Where |
+|---------|---------|-------|
+| **PagedAttention** | OS virtual memory | `engine/kv_cache.py` |
+| **Physical blocks** | Page frames | `engine/kv_cache.py` |
+| **Block table** | Page table | `engine/sequence.py` |
+| **Continuous batching** | Preemptive scheduling | `engine/scheduler.py` |
+| **Prefill** | Cache warm-up (compute-bound) | `engine/model_runner.py` |
+| **Decode** | Cache read per token (memory-bound) | `engine/model_runner.py` |
+| **Online softmax** | Flash attention over scattered blocks | `kernels/paged_attn_triton.py` |
+| **Preemption** | Swap (GPU→CPU) or recompute | `engine/scheduler.py` |
+| **TTFT / TPOT** | Serving latency metrics | `benchmarks/latency.py` |
+| **INT8 / NF4** | Weight + KV cache quantization | `quantization/int8_quant.py` |
+
+### Triton kernel speedup
+
+```
+Config            Std-attn   PyRef    Triton   Speedup
+──────────────────────────────────────────────────────
+B=1, H=8, seq=128   0.020ms  0.059ms  0.049ms    1.2×
+B=4, H=8, seq=256   0.027ms  0.217ms  0.097ms    2.2×
+B=16, H=12, seq=256 0.111ms  0.855ms  0.101ms    8.5×
+```
+
+The Triton kernel eliminates the Python gather loop and fuses scatter + attention into a single pass over HBM, achieving 8.5× speedup at large batch sizes.
+
+---
+
 ## 🧮 Core Concepts Across All Capstones
 
-### The Roofline Model (Capstone 1)
+### The Roofline Model (Capstone 1 & 5)
 
 ```
 TFLOPS
@@ -306,6 +471,9 @@ TFLOPS
 
 Left of ridge  → bandwidth is the bottleneck → optimise memory layout
 Right of ridge → compute is the bottleneck   → use tensor cores, quantise
+
+Decode step:  AI ≈ 0.5–1 FLOPs/byte  → deep memory-bound
+Prefill step: AI ≈ O(T) FLOPs/byte   → approaches compute-bound at large T
 ```
 
 ### Arithmetic Intensity — The Key Question
@@ -314,6 +482,8 @@ Right of ridge → compute is the bottleneck   → use tensor cores, quantise
 |-----------|-------------|-------|
 | Large MatMul (N=4096) | ~1365 FLOPs/byte | Compute |
 | Small MatMul (N=512)  | ~170 FLOPs/byte  | Compute |
+| LLM Decode (1 token)  | ~0.5–1 FLOPs/byte | Memory |
+| LLM Prefill (T=256)   | ~128 FLOPs/byte  | Compute |
 | LayerNorm / RMSNorm   | ~1.5 FLOPs/byte  | Memory  |
 | Softmax / GELU        | ~2–4 FLOPs/byte  | Memory  |
 
@@ -327,6 +497,21 @@ loss (FP32)         grad × S (FP16)        true grad (FP32)
   S = 65536         (FP16)           (FP32)
 
 S halves after overflow, doubles every 2000 clean steps.
+```
+
+### PagedAttention — Memory Model (Capstone 5)
+
+```
+Traditional (wasteful):
+  seq A: [████████████░░░░░░░░░░░░░░░░░]  ← pre-reserved to max_len
+  seq B: [████░░░░░░░░░░░░░░░░░░░░░░░░░]  ← internal fragmentation
+  seq C: [████████████████████████░░░░░]
+
+PagedAttention (OS-style paging):
+  Physical blocks:  [B0][B1][B2][B3][B4][B5][B6][B7]...
+  seq A block table: [B0, B3, B7]   ← any 3 non-contiguous blocks
+  seq B block table: [B1, B5]
+  seq C block table: [B2, B4, B6]   ← waste < 4%
 ```
 
 ---
