@@ -94,7 +94,7 @@ class MediumNet(nn.Module):
 
     def forward(self, x):
         for l in self.layers:
-            x = torch.gelu(l(x))
+            x = torch.nn.functional.gelu(l(x))
         return x
 
 
@@ -106,7 +106,7 @@ class LargeNet(nn.Module):
 
     def forward(self, x):
         for l in self.layers:
-            x = torch.gelu(l(x))
+            x = torch.nn.functional.gelu(l(x))
         return x
 
 
