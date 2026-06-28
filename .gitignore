@@ -27,18 +27,29 @@ dist/
 *~
 .Readme.md.un~
 
-# Profiler traces (large, machine-generated)
-traces/*.json
-traces/*.gz
-
 # OS
 .DS_Store
 Thumbs.db
 
-# PyTorch compiled artifacts
+# ── PyTorch model files (too large for git) ───────────────────────────────────
 *.pt
 *.pth
 *.onnx
 
-# Logs
+# ── Raw training logs (use *.csv instead) ────────────────────────────────────
 *.log
+
+# ── Datasets (downloaded at runtime — do not commit) ─────────────────────────
+# MNIST (64 MB binary)
+Capstone2/data/MNIST/
+
+# CIFAR-10 (163 MB binary)
+Capstone2/data/cifar-10-batches-py/
+Capstone2/data/cifar-10-python.tar.gz
+
+# Tiny ImageNet (481 MB images + 237 MB zip)
+Capstone2/data/tiny-imagenet-200/
+Capstone2/tiny-imagenet-200.zip
+
+# ── Profiler trace JSONs from Capstone 1 (committed selectively via git add -f)
+# traces/*.json   ← removed: we DO want to commit traces

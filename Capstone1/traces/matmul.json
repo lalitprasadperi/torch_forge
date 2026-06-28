@@ -1,0 +1,181 @@
+
+  {
+    "schemaVersion": 1,
+    "deviceProperties": [
+    {
+      "id": 0, "name": "NVIDIA RTX PRO 2000 Blackwell", "totalGlobalMem": 16619667456,
+      "computeMajor": 12, "computeMinor": 0,
+      "maxThreadsPerBlock": 1024, "maxThreadsPerMultiprocessor": 1536,
+      "regsPerBlock": 65536, "warpSize": 32,
+      "sharedMemPerBlock": 49152, "numSms": 34
+    , "regsPerMultiprocessor": 65536, "sharedMemPerBlockOptin": 101376, "sharedMemPerMultiprocessor": 102400
+    }
+    ],
+      "trace_id": "D48F4F3CA1DD400BB7BE69AAC07BEF7C",
+      "profile_memory": 1,
+      "cuda_driver_version": 13020,
+      "record_shapes": 1,
+      "with_flops": 1,
+      "cuda_runtime_version": 12080,
+      "cupti_version": 26,
+  "displayTimeUnit": "ms",
+  "baseTimeNanoseconds": 1775078550000000000,
+  "traceEvents": [
+  {
+    "ph": "X", "cat": "user_annotation", "name": "ProfilerStep#5", "pid": 1726307, "tid": 1726307,
+    "ts": 7513146961304.754, "dur": 54.572,
+    "args": {
+      "External id": 1,"Record function id": 0, "Ev Idx": 0
+    }
+  },
+  {
+    "ph": "X", "cat": "cpu_op", "name": "aten::mm", "pid": 1726307, "tid": 1726307,
+    "ts": 7513146961338.491, "dur": 15.032,
+    "args": {
+      "External id": 2,"Sequence number": 0, "Fwd thread id": 0, "Record function id": 0, "Concrete Inputs": ["", ""], "Input type": ["c10::Half", "c10::Half"], "Input Strides": [[512, 1], [512, 1]], "Input Dims": [[512, 512], [512, 512]], "Ev Idx": 1
+    }
+  },
+  {
+    "ph": "X", "cat": "user_annotation", "name": "ProfilerStep#6", "pid": 1726307, "tid": 1726307,
+    "ts": 7513146961364.601, "dur": 11.234,
+    "args": {
+      "External id": 3,"Record function id": 0, "Ev Idx": 2
+    }
+  },
+  {
+    "ph": "X", "cat": "cpu_op", "name": "aten::mm", "pid": 1726307, "tid": 1726307,
+    "ts": 7513146961367.691, "dur": 5.463,
+    "args": {
+      "External id": 4,"Sequence number": 0, "Fwd thread id": 0, "Record function id": 0, "Concrete Inputs": ["", ""], "Input type": ["c10::Half", "c10::Half"], "Input Strides": [[512, 1], [512, 1]], "Input Dims": [[512, 512], [512, 512]], "Ev Idx": 3
+    }
+  },
+  {
+    "ph": "X", "cat": "user_annotation", "name": "ProfilerStep#7", "pid": 1726307, "tid": 1726307,
+    "ts": 7513146961379.978, "dur": 9.917,
+    "args": {
+      "External id": 5,"Record function id": 0, "Ev Idx": 4
+    }
+  },
+  {
+    "ph": "X", "cat": "cpu_op", "name": "aten::mm", "pid": 1726307, "tid": 1726307,
+    "ts": 7513146961382.548, "dur": 5.119,
+    "args": {
+      "External id": 6,"Sequence number": 0, "Fwd thread id": 0, "Record function id": 0, "Concrete Inputs": ["", ""], "Input type": ["c10::Half", "c10::Half"], "Input Strides": [[512, 1], [512, 1]], "Input Dims": [[512, 512], [512, 512]], "Ev Idx": 5
+    }
+  },
+  {
+    "ph": "i", "cat": "cpu_instant_event", "s": "t", "name": "[memory]",
+    "pid": 1726307, "tid": 1726307,
+    "ts": 7513146961339.847,
+    "args": {
+      "Total Reserved": 23068672, "Total Allocated": 10092544, "Bytes": 524288, "Device Id": 0, "Device Type": 1, "Addr": 131139630006272, "finished": false, "Ev Idx": 6
+    }
+  },
+  {
+    "ph": "i", "cat": "cpu_instant_event", "s": "t", "name": "[memory]",
+    "pid": 1726307, "tid": 1726307,
+    "ts": 7513146961355.174,
+    "args": {
+      "Total Reserved": 23068672, "Total Allocated": 9568256, "Bytes": -524288, "Device Id": 0, "Device Type": 1, "Addr": 131139630006272, "finished": false, "Ev Idx": 7
+    }
+  },
+  {
+    "ph": "i", "cat": "cpu_instant_event", "s": "t", "name": "[memory]",
+    "pid": 1726307, "tid": 1726307,
+    "ts": 7513146961368.407,
+    "args": {
+      "Total Reserved": 23068672, "Total Allocated": 10092544, "Bytes": 524288, "Device Id": 0, "Device Type": 1, "Addr": 131139630006272, "finished": false, "Ev Idx": 8
+    }
+  },
+  {
+    "ph": "i", "cat": "cpu_instant_event", "s": "t", "name": "[memory]",
+    "pid": 1726307, "tid": 1726307,
+    "ts": 7513146961373.834,
+    "args": {
+      "Total Reserved": 23068672, "Total Allocated": 9568256, "Bytes": -524288, "Device Id": 0, "Device Type": 1, "Addr": 131139630006272, "finished": false, "Ev Idx": 9
+    }
+  },
+  {
+    "ph": "i", "cat": "cpu_instant_event", "s": "t", "name": "[memory]",
+    "pid": 1726307, "tid": 1726307,
+    "ts": 7513146961383.157,
+    "args": {
+      "Total Reserved": 23068672, "Total Allocated": 10092544, "Bytes": 524288, "Device Id": 0, "Device Type": 1, "Addr": 131139630006272, "finished": false, "Ev Idx": 10
+    }
+  },
+  {
+    "ph": "i", "cat": "cpu_instant_event", "s": "t", "name": "[memory]",
+    "pid": 1726307, "tid": 1726307,
+    "ts": 7513146961388.160,
+    "args": {
+      "Total Reserved": 23068672, "Total Allocated": 9568256, "Bytes": -524288, "Device Id": 0, "Device Type": 1, "Addr": 131139630006272, "finished": false, "Ev Idx": 11
+    }
+  },
+  {
+    "name": "process_name", "ph": "M", "ts": 7513146961213.702, "pid": 1726307, "tid": 0,
+    "args": {
+      "name": "python"
+    }
+  },
+  {
+    "name": "process_labels", "ph": "M", "ts": 7513146961213.702, "pid": 1726307, "tid": 0,
+    "args": {
+      "labels": "CPU"
+    }
+  },
+  {
+    "name": "process_sort_index", "ph": "M", "ts": 7513146961213.702, "pid": 1726307, "tid": 0,
+    "args": {
+      "sort_index": 1726307
+    }
+  },
+  {
+    "name": "thread_name", "ph": "M", "ts": 7513146961213.702, "pid": 1726307, "tid": 1726307,
+    "args": {
+      "name": "thread 1726307 (python)"
+    }
+  },
+  {
+    "name": "thread_sort_index", "ph": "M", "ts": 7513146961213.702, "pid": 1726307, "tid": 1726307,
+    "args": {
+      "sort_index": 1726307
+    }
+  },
+  {
+    "name": "thread_name", "ph": "M", "ts": 7513146961213.702, "pid": 1726307, "tid": 1726307,
+    "args": {
+      "name": "thread 1726307 (python)"
+    }
+  },
+  {
+    "name": "thread_sort_index", "ph": "M", "ts": 7513146961213.702, "pid": 1726307, "tid": 1726307,
+    "args": {
+      "sort_index": 1726307
+    }
+  },
+  {
+    "ph": "X", "cat": "Trace", "ts": 7513146961177.846, "dur": 264.110,
+    "pid": "Spans", "tid": "PyTorch Profiler",
+    "name": "PyTorch Profiler (0)",
+    "args": {
+      "Op count": 0
+    }
+  },
+  {
+    "name": "process_sort_index", "ph": "M", "ts": 7513146961177.846,
+    "pid": "Spans", "tid": 0,
+    "args": {
+      "sort_index": 536870912
+    }
+  },
+  {
+    "name": "Iteration Start: PyTorch Profiler", "ph": "i", "s": "g",
+    "pid": "Traces", "tid": "Trace PyTorch Profiler", "ts": 7513146961177.846
+  },
+  {
+    "name": "Record Window End", "ph": "i", "s": "g",
+    "pid": "", "tid": "", "ts": 7513146961529.044
+  }
+  ],
+  "traceName": "traces/matmul.json"
+}
