@@ -66,25 +66,24 @@ def rmsnorm_kernel(
     mean_sq = tl.sum(x_sq, axis=0) / n_cols
     rsqrt   = tl.rsqrt(mean_sq + eps)
 
-    # Normalise + scale
+    # Normalise + scale (weight also upcast for consistency)
     x_norm = x * rsqrt
-    w      = tl.load(weight_ptr + cols, mask=mask, other=1.0)
+    w      = tl.load(weight_ptr + cols, mask=mask, other=1.0).to(tl.float32)
     out    = x_norm * w
 
-    # Store (cast back to original dtype)
-    tl.store(out_ptr + row_start + cols, out.to(tl.float16), mask=mask)
+    # Store — Triton auto-casts fp32 → out_ptr element dtype (fp16 or fp32)
+    tl.store(out_ptr + row_start + cols, out, mask=mask)
 
 
 def triton_rmsnorm(x: torch.Tensor, weight: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
-    """Fused RMSNorm: O(N) memory, one HBM pass."""
+    """Fused RMSNorm: O(N) memory, one HBM pass. Accepts fp16 or fp32."""
     assert x.is_cuda
-    x16 = x.to(torch.float16)
-    rows, cols = x16.shape
+    rows, cols = x.shape
     BLOCK = triton.next_power_of_2(cols)
-    out   = torch.empty_like(x16)
+    out   = torch.empty_like(x)          # output matches input dtype
     grid  = (rows,)
-    rmsnorm_kernel[grid](x16, weight.to(torch.float16), out, cols, eps=eps, BLOCK=BLOCK)
-    return out.to(x.dtype)
+    rmsnorm_kernel[grid](x, weight.to(x.dtype), out, cols, eps=eps, BLOCK=BLOCK)
+    return out
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -94,29 +93,31 @@ def triton_rmsnorm(x: torch.Tensor, weight: torch.Tensor, eps: float = 1e-6) -> 
 
 @triton.jit
 def swiglu_kernel(
-    x_ptr,
+    x1_ptr,    # pointer to gate tensor  (B, d_ff), contiguous
+    x2_ptr,    # pointer to up tensor    (B, d_ff), contiguous
     out_ptr,
     n_elements,
-    half_n,
     BLOCK: tl.constexpr,
 ):
     """
-    x has shape (B, 2*d_ff). We split into x1, x2 (each shape B, d_ff).
     out = x1 * silu(x2)   where silu(x) = x * sigmoid(x)
 
-    Each program handles BLOCK contiguous elements of the output.
+    Takes SEPARATE pointers for x1 and x2 so both can be loaded with
+    simple linear offsets — no stride arithmetic needed.
+    The wrapper calls .contiguous() on each half before passing in.
     """
     pid     = tl.program_id(0)
     offsets = pid * BLOCK + tl.arange(0, BLOCK)
     mask    = offsets < n_elements
 
-    # x1 is in first half, x2 in second half
-    x1 = tl.load(x_ptr + offsets,         mask=mask, other=0.0)
-    x2 = tl.load(x_ptr + offsets + half_n, mask=mask, other=0.0)
+    x1 = tl.load(x1_ptr + offsets, mask=mask, other=0.0)
+    x2 = tl.load(x2_ptr + offsets, mask=mask, other=0.0)
 
-    # SiLU(x) = x * sigmoid(x) = x / (1 + exp(-x))
-    silu_x2 = x2 * tl.sigmoid(x2)
-    out      = x1 * silu_x2
+    # tl.sigmoid requires fp32
+    x1_f32  = x1.to(tl.float32)
+    x2_f32  = x2.to(tl.float32)
+    silu_x2 = x2_f32 * tl.sigmoid(x2_f32)
+    out      = x1_f32 * silu_x2
 
     tl.store(out_ptr + offsets, out, mask=mask)
 
@@ -126,11 +127,13 @@ def triton_swiglu(x: torch.Tensor) -> torch.Tensor:
     assert x.is_cuda and x.ndim == 2
     B, two_d = x.shape
     assert two_d % 2 == 0
-    d    = two_d // 2
-    out  = torch.empty(B, d, device=x.device, dtype=x.dtype)
+    d = two_d // 2
+    # Split into contiguous halves so kernel can use linear offsets
+    x1  = x[:, :d].contiguous()
+    x2  = x[:, d:].contiguous()
+    out = torch.empty(B, d, device=x.device, dtype=x.dtype)
     grid = lambda meta: (triton.cdiv(B * d, meta["BLOCK"]),)
-
-    swiglu_kernel[grid](x, out, B * d, B * d, BLOCK=512)
+    swiglu_kernel[grid](x1, x2, out, B * d, BLOCK=512)
     return out
 
 
@@ -176,9 +179,9 @@ def residual_rmsnorm_kernel(
     w     = tl.load(weight_ptr + cols, mask=mask, other=1.0).to(tl.float32)
     normed = res_new * rms * w
 
-    # Store both outputs
-    tl.store(residual_out_ptr + row_start + cols, res_new.to(tl.float16), mask=mask)
-    tl.store(out_ptr          + row_start + cols, normed.to(tl.float16), mask=mask)
+    # Store both — Triton auto-casts fp32 → out_ptr element dtype
+    tl.store(residual_out_ptr + row_start + cols, res_new, mask=mask)
+    tl.store(out_ptr          + row_start + cols, normed,  mask=mask)
 
 
 def triton_residual_rmsnorm(
@@ -189,13 +192,12 @@ def triton_residual_rmsnorm(
 ):
     assert x.is_cuda
     rows, cols = x.shape
-    BLOCK = triton.next_power_of_2(cols)
-    out         = torch.empty_like(x, dtype=torch.float16)
-    residual_new = torch.empty_like(x, dtype=torch.float16)
+    BLOCK        = triton.next_power_of_2(cols)
+    out          = torch.empty_like(x)   # match input dtype
+    residual_new = torch.empty_like(x)
     grid = (rows,)
     residual_rmsnorm_kernel[grid](
-        x.to(torch.float16), residual.to(torch.float16),
-        weight.to(torch.float16),
+        x, residual, weight.to(x.dtype),
         out, residual_new,
         cols, eps=eps, BLOCK=BLOCK,
     )
@@ -222,11 +224,14 @@ def demo():
 
     # ── RMSNorm ───────────────────────────────────────────────────────────────
     print("\n── Fused RMSNorm ────────────────────────────────────────────────")
-    x = torch.randn(B, d, device="cuda")
-    w = torch.ones(d, device="cuda")
+    # Use fp16 for both so the diff reflects implementation error, not dtype mismatch
+    x = torch.randn(B, d, device="cuda", dtype=torch.float16)
+    w = torch.ones(d, device="cuda", dtype=torch.float16)
 
     def torch_rmsnorm(x, w, eps=1e-6):
-        return (x / x.pow(2).mean(-1, keepdim=True).add(eps).rsqrt()) * w
+        x32 = x.float()
+        # rsqrt(mean(x²)+ε) = 1/sqrt(mean(x²)+ε), so multiply (not divide)
+        return (x32 * x32.pow(2).mean(-1, keepdim=True).add(eps).rsqrt() * w.float()).to(x.dtype)
 
     out_triton = triton_rmsnorm(x, w)
     out_torch  = torch_rmsnorm(x, w)
@@ -256,13 +261,15 @@ def demo():
 
     # ── Residual + RMSNorm ────────────────────────────────────────────────────
     print("\n── Fused Residual + RMSNorm (Llama-style) ───────────────────────")
-    x2  = torch.randn(B, d, device="cuda")
-    res = torch.randn(B, d, device="cuda")
-    w2  = torch.ones(d, device="cuda")
+    x2  = torch.randn(B, d, device="cuda", dtype=torch.float16)
+    res = torch.randn(B, d, device="cuda", dtype=torch.float16)
+    w2  = torch.ones(d, device="cuda", dtype=torch.float16)
 
     def torch_res_rms(x, r, w, eps=1e-6):
         r_new = x + r
-        return torch_rmsnorm(r_new, w, eps), r_new
+        r32 = r_new.float()
+        normed = (r32 * r32.pow(2).mean(-1, keepdim=True).add(eps).rsqrt() * w.float()).to(x.dtype)
+        return normed, r_new
 
     out_t, res_t = triton_residual_rmsnorm(x2, res, w2)
     out_e, res_e = torch_res_rms(x2, res, w2)
@@ -274,10 +281,9 @@ def demo():
     print(f"  Triton (1 kernel):      {t_fused:.3f} ms")
     print(f"  Torch  (2 kernels+HBM): {t_unfused:.3f} ms")
 
-    # Bandwidth saved
-    B_elem = B * d
-    bw_saved = 2 * B_elem * 2 / 1e9   # residual_new: one write+read avoided
-    print(f"  HBM traffic saved per call: ~{bw_saved:.1f} GB")
+    # Bandwidth saved: residual_new tensor (fp16) not written then re-read
+    bw_saved_mb = B * d * 2 * 2 / 1e6   # write + read, 2 bytes (fp16)
+    print(f"  HBM traffic saved per call: ~{bw_saved_mb:.0f} MB")
 
 
 if __name__ == "__main__":
