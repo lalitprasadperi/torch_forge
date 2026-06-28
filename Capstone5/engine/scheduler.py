@@ -184,17 +184,23 @@ class Scheduler:
     ) -> None:
         seqs = group.get_seqs(SequenceStatus.RUNNING)
         if self.config.preemption_mode == "swap":
-            for s in seqs:
-                mapping = self.block_manager.swap_out(s)
-                swap_out_map.update(mapping)
-            self.swapped.append(group)
-        else:
-            # recompute: drop KV cache entirely, move back to waiting
-            for s in seqs:
-                self.block_manager.free(s)
-                s.status = SequenceStatus.WAITING
-                s.output_token_ids = []   # reset: will be re-prefilled
-            self.waiting.insert(0, group)   # priority re-entry
+            # Only attempt swap if CPU has capacity for all this group's blocks.
+            # Fall back to recompute if CPU is also full.
+            blocks_needed = sum(len(s.block_table) for s in seqs)
+            if self.block_manager.num_free_cpu_blocks() >= blocks_needed:
+                for s in seqs:
+                    mapping = self.block_manager.swap_out(s)
+                    swap_out_map.update(mapping)
+                self.swapped.append(group)
+                preempted_list.extend(seqs)
+                return
+
+        # recompute: drop KV cache entirely, move back to waiting
+        for s in seqs:
+            self.block_manager.free(s)
+            s.status = SequenceStatus.WAITING
+            s.output_token_ids = []   # reset: will be re-prefilled
+        self.waiting.insert(0, group)   # priority re-entry
         preempted_list.extend(seqs)
 
     @property
