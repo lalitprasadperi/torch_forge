@@ -14,7 +14,7 @@ The philosophy: **don't just read about PyTorch, build tools with it.** Every ca
 |---|-------|--------|--------|
 | [**1**](Capstone1/) | 🔬 **PyTorch Performance Lab** | Tensors, Autograd, CUDA Streams, Benchmarking, Roofline Model | ✅ Complete |
 | [**2**](Capstone2/) | 🏋️ **Mini Training Framework** | nn.Module, Trainer, DataLoader, AMP, Grad Accum, Checkpointing | ✅ Complete |
-| 3 | 🧵 *Coming soon* | Multi-GPU training — DDP, tensor parallelism, NCCL all-reduce | 🔜 |
+| [**3**](Capstone3/) | 🧠 **Rebuild the Transformer** | Attention, MHA, FFN, Residual, RoPE, RMSNorm, SwiGLU, FlashAttention, KV Cache | ✅ Complete |
 | 4 | 📉 *Coming soon* | Quantisation — INT8 matmul, GPTQ, activation-aware scaling | 🔜 |
 | 5 | 🔄 *Coming soon* | CUDA Graphs — capture and replay, zero-CPU-overhead inference | 🔜 |
 
@@ -178,7 +178,50 @@ python train.py --config mnist_mlp --lr 5e-4 --epochs 10   # override config val
 
 ---
 
-## 🧠 Core Concepts Across All Capstones
+## 🧠 Capstone 3 — Rebuild the Transformer
+
+> **Goal:** Implement every component of a GPT from scratch and understand why each design choice exists. Add the modern variants (RoPE, RMSNorm, SwiGLU, FlashAttention) used in LLaMA and Mistral.
+
+### What you build
+
+A complete transformer library (`transformer/`) implementing all components from first principles, plus a character-level GPT that trains on Shakespeare in ~15 minutes.
+
+### Learning path
+
+```
+attention_tour.py  →  rope_tour.py  →  flash_tour.py  →  train_gpt.py
+      🔍                  🌀               ⚡                 🚀
+  Attention from       Rotary PE       FlashAttention      Train GPT
+  First Principles     Explained       Memory Analysis     on Shakespeare
+```
+
+### Components implemented
+
+| Component | Classic | Modern (LLaMA-style) |
+|-----------|---------|---------------------|
+| Position  | Sinusoidal / Learned PE | RoPE (relative, in Q/K) |
+| Norm      | LayerNorm | RMSNorm (10-30% faster) |
+| FFN       | GELU | SwiGLU (gated, better perplexity) |
+| Attention | Naive O(T²) | FlashAttention O(T) memory |
+
+### Quick start
+
+```bash
+cd Capstone3
+source /home/jmd/venvs/rtx2000/bin/activate
+
+python tours/attention_tour.py   # 7 lessons: attention from first principles
+python tours/rope_tour.py        # 7 lessons: rotary embeddings
+python tours/flash_tour.py       # 6 lessons: FlashAttention memory analysis
+
+python train_gpt.py --config gpt_nano           # train ~10M param GPT (~15 min)
+python train_gpt.py --config gpt_modern         # same size, LLaMA architecture
+python train_gpt.py --config gpt_nano --generate-only --prompt "HAMLET:"
+```
+
+---
+
+## 🧮 Core Concepts Across All Capstones
 
 ### The Roofline Model (Capstone 1)
 
