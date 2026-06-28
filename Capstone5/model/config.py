@@ -39,7 +39,7 @@ class ModelConfig:
     @classmethod
     def nano(cls):
         """Tiny model for fast testing (char-level tokenizer friendly)."""
-        return cls(vocab_size=256, d_model=128, n_heads=4, n_layers=4, d_ff=512, context_len=256)
+        return cls(vocab_size=256, d_model=128, n_heads=4, n_layers=4, d_ff=512, context_len=512)
 
 
 @dataclass

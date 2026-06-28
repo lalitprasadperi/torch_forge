@@ -21,6 +21,9 @@ sets `is_prefill` and passes the appropriate block_tables + seq_lens.
 """
 
 import math
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 from typing import List, Optional, Tuple
 
 import torch

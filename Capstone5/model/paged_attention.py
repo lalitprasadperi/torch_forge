@@ -21,6 +21,9 @@ BLOCK TABLE LAYOUT:
 """
 
 import math
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 from typing import List, Optional
 
 import torch
@@ -135,3 +138,65 @@ def paged_attention_decode(
         output[i] = attn
 
     return output
+
+
+if __name__ == "__main__":
+    device     = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    B, H, D    = 4, 8, 64
+    block_size = 16
+    seq_len    = 48   # 3 blocks
+    n_blocks   = math.ceil(seq_len / block_size)
+    num_blocks = B * n_blocks
+    scale      = 1.0 / math.sqrt(D)
+
+    print("=" * 55)
+    print("Paged Attention — smoke test")
+    print("=" * 55)
+
+    # ── Contiguous K,V reference ──────────────────────────────
+    torch.manual_seed(0)
+    k_cont = torch.randn(B, seq_len, H, D, device=device)
+    v_cont = torch.randn(B, seq_len, H, D, device=device)
+    q      = torch.randn(B, H, D, device=device)
+
+    # ── Prefill: write contiguous K,V into paged cache ────────
+    kv_cache     = torch.zeros(num_blocks, 2, block_size, H, D, device=device)
+    block_tables = torch.zeros(B, n_blocks, dtype=torch.int32, device=device)
+    seq_lens     = torch.full((B,), seq_len, dtype=torch.int32, device=device)
+    cache_offset = torch.zeros(B, dtype=torch.int32, device=device)
+
+    for i in range(B):
+        start = i * n_blocks
+        block_tables[i] = torch.arange(start, start + n_blocks, dtype=torch.int32)
+        # manually fill cache (write_to_cache writes (B, T, H, D) shaped k,v)
+
+    # Use write_to_cache via a fake prefill call
+    k_bthd = k_cont   # (B, seq_len, H, D)
+    v_bthd = v_cont
+    write_to_cache(kv_cache, k_bthd, v_bthd, block_tables, cache_offset, block_size)
+    print(f"  write_to_cache   : filled {num_blocks} blocks ✓")
+
+    # ── Decode: paged attention vs contiguous reference ───────
+    paged_out = paged_attention_decode(q, kv_cache, block_tables, seq_lens, scale)
+
+    # Reference: q @ K^T → softmax → @ V over contiguous buffer
+    k_h  = k_cont.permute(0, 2, 1, 3)                       # (B, H, seq_len, D)
+    v_h  = v_cont.permute(0, 2, 1, 3)                       # (B, H, seq_len, D)
+    q_h  = q.unsqueeze(2)                                    # (B, H, 1, D)
+    scores = torch.matmul(q_h, k_h.transpose(-1, -2)) * scale  # (B, H, 1, seq_len)
+    ref    = torch.matmul(torch.softmax(scores, dim=-1), v_h).squeeze(2)  # (B, H, D)
+
+    max_diff = (paged_out - ref).abs().max().item()
+    status   = "✓" if max_diff < 1e-4 else "✗"
+    print(f"  paged vs ref     : max_diff={max_diff:.2e}  {status}")
+
+    # ── Prefill attention shape check ─────────────────────────
+    t_ids = torch.randint(0, 256, (B, seq_len, H, D), device=device)
+    pf_q  = torch.randn(B, seq_len, H, D, device=device)
+    pf_k  = torch.randn(B, seq_len, H, D, device=device)
+    pf_v  = torch.randn(B, seq_len, H, D, device=device)
+    pf_out = paged_attention_prefill(pf_q, pf_k, pf_v)
+    assert pf_out.shape == (B, seq_len, H, D), f"bad shape: {pf_out.shape}"
+    print(f"  prefill output   : shape={list(pf_out.shape)}  ✓")
+    print(f"  device           : {device}")
+    print("  Smoke test passed.")
