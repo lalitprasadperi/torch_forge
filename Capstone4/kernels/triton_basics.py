@@ -244,7 +244,7 @@ def demo():
     print(f"  Max diff: {(triton_out2 - torch_out2).abs().max():.2e}")
 
     t_triton2 = benchmark(triton_softmax, x2)
-    t_torch2  = benchmark(torch.softmax, x2, dim=-1)
+    t_torch2  = benchmark(lambda x: torch.softmax(x, dim=-1), x2)
     print(f"  Triton: {t_triton2:.3f} ms  |  torch (cuDNN): {t_torch2:.3f} ms")
 
     print("\n── Kernel 3: Fused Bias + ReLU ───────────────────────────────────")
