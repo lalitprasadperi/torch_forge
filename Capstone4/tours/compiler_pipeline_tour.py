@@ -107,11 +107,11 @@ def show_dynamo_guards():
     explanation = torch._dynamo.explain(fn)(x)
 
     show("Dynamo explanation for: relu(x @ x.T)")
-    print(f"      graph_count: {explanation.graph_count}")
-    print(f"      break_count: {explanation.break_count}")
-    if hasattr(explanation, 'guards') and explanation.guards:
-        print(f"      # guards:    {len(explanation.guards)}")
-        for g in explanation.guards[:3]:
+    print(f"      graph_count:       {explanation.graph_count}")
+    print(f"      graph_break_count: {explanation.graph_break_count}")
+    if explanation.out_guards:
+        print(f"      # guards:          {len(explanation.out_guards)}")
+        for g in explanation.out_guards[:3]:
             print(f"      guard: {str(g)[:60]}")
 
 show_dynamo_guards()

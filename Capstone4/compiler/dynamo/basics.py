@@ -139,7 +139,7 @@ def demo_explain():
     x = torch.randn(8, 8, device="cuda")
     explanation = torch._dynamo.explain(fn_with_breaks)(x)
     print(f"  Number of graphs (sub-graphs): {explanation.graph_count}")
-    print(f"  Number of graph breaks:        {explanation.break_count}")
+    print(f"  Number of graph breaks:        {explanation.graph_break_count}")
     for i, reason in enumerate(explanation.break_reasons):
         print(f"  Break {i}: {reason.reason[:80]}")
 

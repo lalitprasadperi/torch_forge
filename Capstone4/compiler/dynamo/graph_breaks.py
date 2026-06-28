@@ -45,7 +45,7 @@ import torch._dynamo
 def count_graphs(fn, x):
     """Count how many sub-graphs Dynamo creates for fn."""
     explanation = torch._dynamo.explain(fn)(x)
-    return explanation.graph_count, explanation.break_count
+    return explanation.graph_count, explanation.graph_break_count
 
 
 # ── Break type 1: .item() ────────────────────────────────────────────────────
