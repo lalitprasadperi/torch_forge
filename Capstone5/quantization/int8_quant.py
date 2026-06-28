@@ -108,12 +108,13 @@ class Int8Linear(nn.Module):
         """Convert an existing fp16/fp32 Linear to Int8Linear."""
         layer = cls(fp_layer.in_features, fp_layer.out_features, fp_layer.bias is not None)
         with torch.no_grad():
-            w_q, scale = quantize_int8_symmetric(fp_layer.weight, dim=0)
+            w_q, scale = quantize_int8_symmetric(fp_layer.weight.float().cpu(), dim=0)
             layer.weight_q.copy_(w_q)
             layer.weight_scale.copy_(scale)
             if fp_layer.bias is not None:
                 layer.bias = nn.Parameter(fp_layer.bias.clone())
-        return layer
+        # Move buffers/params to the same device as the source layer
+        return layer.to(fp_layer.weight.device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Dequantize weights: (out_features, in_features) float

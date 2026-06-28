@@ -129,25 +129,34 @@ class BlockManager:
         seq.block_table = [b.block_id for b in blocks]
 
     def can_append_slot(self, seq: Sequence) -> bool:
-        """Check whether we can add one more token's slot (may need a new block)."""
-        last_slot_used = seq.length % self.block_size
-        if last_slot_used != 0:
-            return True   # last block still has room
+        """
+        Check whether the decode write position has an allocated block.
+
+        During decode, we write K,V to position (seq.length - 1) — the last
+        appended token.  A new physical block is needed when that position
+        falls outside the currently allocated range, i.e. when
+          (seq.length - 1) // block_size  >=  len(seq.block_table)
+        """
+        write_block = (seq.length - 1) // self.block_size
+        if write_block < len(seq.block_table):
+            return True   # block already allocated
         return self.gpu_allocator.num_free_blocks >= 1
 
     def append_slot(self, seq: Sequence) -> Optional[Tuple[int, int]]:
         """
-        Ensure the sequence has room for one more token.
-        If the last block is full, allocate a new one.
-        Returns (old_block_id, new_block_id) if copy-on-write was triggered
-        (for prefix caching), else None.
-        """
-        last_slot = seq.length % self.block_size
-        if last_slot != 0:
-            # Last block has space — nothing to do
-            return None
+        Allocate a new physical block if the decode write position overflows
+        the current block table.
 
-        # Need a new block
+        Called by the scheduler before each decode step.  After append_token()
+        increments seq.length, the write target is position seq.length-1.
+        If that position's block index equals len(seq.block_table) we are at
+        the first slot of a new (unallocated) block.
+        """
+        write_block = (seq.length - 1) // self.block_size
+        if write_block < len(seq.block_table):
+            return None   # block already allocated, nothing to do
+
+        # Need a new block for the upcoming write
         new_block = self.gpu_allocator.allocate()
         self._gpu_blocks[seq.seq_id].append(new_block)
         seq.block_table.append(new_block.block_id)

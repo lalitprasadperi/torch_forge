@@ -56,7 +56,7 @@ def paged_attn_decode_kernel(
     # Dimensions
     scale,
     B, H, D,
-    block_size,
+    block_size: tl.constexpr,  # constexpr: unrolls the inner tok loop
     max_blocks,
     # Tile sizes
     BLOCK_D: tl.constexpr,   # must be >= D, power of 2
@@ -64,13 +64,18 @@ def paged_attn_decode_kernel(
     """
     Each program handles ONE (batch, head) pair.
     Iterates over all KV blocks for that sequence using online softmax.
+
+    Triton does not support `break` inside loops, so we loop to n_blocks
+    (the actual number of blocks for this sequence) instead of max_blocks.
+    The inner loop over tokens is unrolled because block_size is constexpr.
     """
     batch_idx = tl.program_id(0)
     head_idx  = tl.program_id(1)
 
-    seq_len = tl.load(seq_lens_ptr + batch_idx)
-    d_offs  = tl.arange(0, BLOCK_D)
-    d_mask  = d_offs < D
+    seq_len  = tl.load(seq_lens_ptr + batch_idx)
+    n_blocks = (seq_len + block_size - 1) // block_size
+    d_offs   = tl.arange(0, BLOCK_D)
+    d_mask   = d_offs < D
 
     # Load query: (D,)
     q = tl.load(
@@ -83,21 +88,17 @@ def paged_attn_decode_kernel(
     l   = 0.0
     acc = tl.zeros((BLOCK_D,), dtype=tl.float32)
 
-    n_blocks = tl.cdiv(seq_len, block_size)
-
-    for blk in range(max_blocks):
-        if blk >= n_blocks:
-            break
-
+    # Dynamic loop bound: iterate only over allocated blocks (no break needed)
+    for blk in range(n_blocks):
         block_id = tl.load(block_tables_ptr + batch_idx * max_blocks + blk)
 
         # Base pointer for this block's K and V
         k_block_base = k_cache_ptr + block_id * block_size * H * D + head_idx * D
         v_block_base = v_cache_ptr + block_id * block_size * H * D + head_idx * D
 
-        for tok in range(block_size):
-            global_pos  = blk * block_size + tok
-            valid        = global_pos < seq_len
+        for tok in range(block_size):  # unrolled (constexpr)
+            global_pos = blk * block_size + tok
+            valid      = global_pos < seq_len
 
             k_tok = tl.load(
                 k_block_base + tok * H * D + d_offs,
