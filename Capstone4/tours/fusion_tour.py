@@ -173,7 +173,7 @@ if DEVICE == "cuda":
     def gelu_chain(x):
         a = x * 2.0
         b = a + 0.5
-        c = torch.gelu(b)
+        c = torch.nn.functional.gelu(b)
         return c
 
     gelu_compiled = torch.compile(gelu_chain)
