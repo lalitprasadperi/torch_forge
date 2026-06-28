@@ -15,8 +15,7 @@ The philosophy: **don't just read about PyTorch, build tools with it.** Every ca
 | [**1**](Capstone1/) | 🔬 **PyTorch Performance Lab** | Tensors, Autograd, CUDA Streams, Benchmarking, Roofline Model | ✅ Complete |
 | [**2**](Capstone2/) | 🏋️ **Mini Training Framework** | nn.Module, Trainer, DataLoader, AMP, Grad Accum, Checkpointing | ✅ Complete |
 | [**3**](Capstone3/) | 🧠 **Rebuild the Transformer** | Attention, MHA, FFN, Residual, RoPE, RMSNorm, SwiGLU, FlashAttention, KV Cache | ✅ Complete |
-| 4 | 📉 *Coming soon* | Quantisation — INT8 matmul, GPTQ, activation-aware scaling | 🔜 |
-| 5 | 🔄 *Coming soon* | CUDA Graphs — capture and replay, zero-CPU-overhead inference | 🔜 |
+| [**4**](Capstone4/) | ⚙️ **PyTorch Compiler Deep Dive** | torch.compile, TorchDynamo, FX Graph, AOTAutograd, Inductor, Triton Kernels, CUDA Graphs, Kernel Fusion | ✅ Complete |
 
 ---
 
@@ -217,6 +216,76 @@ python tours/flash_tour.py       # 6 lessons: FlashAttention memory analysis
 python train_gpt.py --config gpt_nano           # train ~10M param GPT (~15 min)
 python train_gpt.py --config gpt_modern         # same size, LLaMA architecture
 python train_gpt.py --config gpt_nano --generate-only --prompt "HAMLET:"
+```
+
+---
+
+## ⚙️ Capstone 4 — PyTorch Compiler Deep Dive
+
+> **Goal:** Treat PyTorch as a compiler stack. Trace a single tensor operation from Python bytecode all the way to GPU hardware, understanding every transformation stage.
+
+### The Compilation Pipeline
+
+```
+Python Code
+  ↓  TorchDynamo — bytecode interception, FX graph capture, guards
+FX Graph (DAG of ops, no Python control flow)
+  ↓  AOTAutograd — trace the backward pass ahead of time
+Joint fwd+bwd FX Graph
+  ↓  TorchInductor — loop fusion, memory planning, layout optimisation
+Triton (GPU) or C++ (CPU)
+  ↓  Triton Compiler → PTX → SASS
+GPU Hardware (Tensor Cores, HBM, SRAM)
+```
+
+### What you build
+
+Custom Triton kernels for the key transformer operations, a graph inspection toolkit, and benchmarks that quantify exactly how much each compiler stage contributes.
+
+### Learning path
+
+```
+compiler_pipeline_tour.py  →  triton_tour.py  →  fusion_tour.py
+           🗺️                       🔧                  🔥
+     Full Pipeline             GPU Architecture       Memory Wall &
+     End-to-End               Triton DSL             Fusion Patterns
+```
+
+### Topics covered
+
+| Stage | Files | What you learn |
+|---|---|---|
+| **TorchDynamo** | `compiler/dynamo/` | Bytecode interception, graph breaks, guards, fullgraph mode |
+| **FX Graph** | `compiler/fx/` | Node types, symbolic trace, custom passes, graph rewriting |
+| **AOTAutograd** | `compiler/aot/` | Ahead-of-time backward tracing, functorch `grad`/`vmap` |
+| **TorchInductor** | `compiler/inductor/` | Loop fusion, IR, Triton codegen, kernel cache |
+| **CUDA Graphs** | `compiler/cuda_graphs/` | Capture + replay, launch overhead elimination |
+| **Triton Kernels** | `kernels/` | Vector ops, softmax, tiled matmul, RMSNorm, Flash Attention |
+| **Benchmarks** | `benchmarks/` | torch.compile speedup, fusion benefit, CUDA Graph overhead |
+
+### Quick start
+
+```bash
+cd Capstone4
+source /home/jmd/venvs/rtx2000/bin/activate
+
+# Start with the tours
+python tours/compiler_pipeline_tour.py   # full pipeline walk-through
+python tours/triton_tour.py              # GPU arch + Triton DSL
+python tours/fusion_tour.py             # memory wall + live fusion demo
+
+# Compiler pipeline
+python compiler/dynamo/basics.py
+python compiler/dynamo/graph_breaks.py
+TORCH_LOGS="output_code" python compiler/inductor/ir_inspect.py
+
+# Triton kernels from scratch
+python kernels/triton_basics.py
+python kernels/flash_attention.py
+
+# Measure the speedups
+python benchmarks/compile_speedup.py
+python benchmarks/fusion_bench.py
 ```
 
 ---
