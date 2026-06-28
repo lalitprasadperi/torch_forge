@@ -13,7 +13,7 @@ The philosophy: **don't just read about PyTorch, build tools with it.** Every ca
 | # | Title | Topics | Status |
 |---|-------|--------|--------|
 | [**1**](Capstone1/) | 🔬 **PyTorch Performance Lab** | Tensors, Autograd, CUDA Streams, Benchmarking, Roofline Model | ✅ Complete |
-| 2 | ⚡ *Coming soon* | Triton kernels — write a fused RMSNorm and Flash-Attention from scratch | 🔜 |
+| [**2**](Capstone2/) | 🏋️ **Mini Training Framework** | nn.Module, Trainer, DataLoader, AMP, Grad Accum, Checkpointing | ✅ Complete |
 | 3 | 🧵 *Coming soon* | Multi-GPU training — DDP, tensor parallelism, NCCL all-reduce | 🔜 |
 | 4 | 📉 *Coming soon* | Quantisation — INT8 matmul, GPTQ, activation-aware scaling | 🔜 |
 | 5 | 🔄 *Coming soon* | CUDA Graphs — capture and replay, zero-CPU-overhead inference | 🔜 |
@@ -81,9 +81,106 @@ rmsnorm      llama70b_b4                 1.012   0.004    0.521   260.8     2
 
 ---
 
+## 🏋️ Capstone 2 — Mini Training Framework
+
+> **Goal:** Build a complete training framework from scratch — every component hand-rolled so you understand exactly what happens when you call `trainer.fit()`.
+
+### What you build
+
+A modular training library (`framework/`) that handles the full pipeline from raw datasets to saved checkpoints, with support for mixed precision, gradient accumulation, and learning rate scheduling. Trains three different architectures on three datasets.
+
+### Learning path
+
+```
+module_tour.py  →  hooks_demo.py  →  amp_demo.py  →  train.py
+     🔩                 🪝                ⚡               🚀
+  nn.Module          Forward &         Mixed            Full
+  Internals          Backward          Precision        Training
+                     Hooks             (AMP)            Loop
+```
+
+### Models & datasets
+
+| Model | Dataset | Input | Classes | Target Acc |
+|-------|---------|-------|---------|------------|
+| MLP (236k params) | MNIST | 28×28 gray | 10 | ~99% |
+| CNN (95k params) | CIFAR-10 | 32×32 RGB | 10 | ~87% |
+| MiniResNet-18 (11.3M) | Tiny ImageNet | 64×64 RGB | 200 | ~55% |
+
+### Framework components
+
+```
+framework/
+├── models/      MLP · CNN · MiniResNet-18 · BaseModel (hooks API)
+├── data/        Dataset wrappers · transforms · DataLoader factory
+├── optimizers/  SGD · Adam · AdamW
+├── schedulers/  Step · Cosine · WarmupCosine
+├── utils/       AverageMeter · TopKAccuracy · set_seed
+├── logger.py    Console table + CSV export
+├── checkpoint.py  Full state save/load (model+opt+sched+scaler)
+├── evaluator.py   Val loop with no_grad + eval mode
+└── trainer.py   AMP + gradient accumulation + grad clipping
+```
+
+### Quick start
+
+```bash
+cd Capstone2
+source /home/jmd/venvs/rtx2000/bin/activate
+
+# Educational tours first (beginner-friendly narration)
+python tours/module_tour.py      # 🔩 7 lessons: nn.Module, Parameters, Buffers, state_dict
+python tours/hooks_demo.py       # 🪝 6 lessons: forward/backward hooks, dead ReLU detection
+python tours/amp_demo.py         # ⚡ 6 lessons: FP16, GradScaler, autocast, speedup
+
+# Then train
+python train.py --config mnist_mlp          # MNIST  — downloads automatically (~170 MB)
+python train.py --config cifar10_cnn        # CIFAR-10 — downloads automatically (~163 MB)
+python train.py --config tiny_imagenet      # Tiny ImageNet — manual download required
+
+# Useful flags
+python train.py --config cifar10_cnn --resume               # resume from latest checkpoint
+python train.py --config mnist_mlp --eval-only --resume     # evaluate only, no training
+python train.py --config mnist_mlp --lr 5e-4 --epochs 10   # override config values
+```
+
+### Sample training output
+
+```
+════════════════════════════════════════════════════════════
+  Capstone 2 — Training Framework
+  Config  : mnist_mlp    Device  : cuda    AMP : True
+════════════════════════════════════════════════════════════
+
+  Dataset : mnist    Train: 60,000    Val: 10,000
+  Model   : MLP      Trainable parameters: 235,914
+  Optimizer : AdamW  lr=0.001  wd=0.0001
+  Scheduler : cosine  epochs=20
+
+┌──────┬────────┬───────────┬──────────┬──────────┬────────────┐
+│ epoch│  phase │   loss    │  acc@1   │  acc@5   │     lr     │
+├──────┼────────┼───────────┼──────────┼──────────┼────────────┤
+│    1 │  train │   0.2841  │  91.45%  │  99.98%  │  1.00e-03  │
+│    1 │    val │   0.1123  │  96.68%  │  99.97%  │  1.00e-03  │
+│   20 │    val │   0.0301  │  99.14%  │ 100.00%  │  1.00e-07  │
+```
+
+### Concepts mastered
+
+| Area | What you learn |
+|------|---------------|
+| **nn.Module** | Parameters vs Buffers, state_dict, module tree, apply() |
+| **Hooks** | Activation capture, gradient monitoring, dead ReLU detection |
+| **AMP** | FP16 dynamic range, GradScaler algorithm, autocast dtype routing |
+| **Training loop** | Grad accumulation (`loss/N`), grad clipping, best-model tracking |
+| **DataLoader** | num_workers, pin_memory, prefetch_factor, worker seeding |
+| **Checkpointing** | Full state (model+opt+sched+scaler+epoch) save and resume |
+
+---
+
 ## 🧠 Core Concepts Across All Capstones
 
-### The Roofline Model
+### The Roofline Model (Capstone 1)
 
 ```
 TFLOPS
@@ -108,6 +205,18 @@ Right of ridge → compute is the bottleneck   → use tensor cores, quantise
 | LayerNorm / RMSNorm   | ~1.5 FLOPs/byte  | Memory  |
 | Softmax / GELU        | ~2–4 FLOPs/byte  | Memory  |
 
+### Mixed Precision (AMP) — How It Works
+
+```
+loss (FP32)         grad × S (FP16)        true grad (FP32)
+     │                     │                      │
+     ▼                     ▼                      ▼
+  × scale S  ──→  backward  ──→  unscale (÷S)  ──→  clip  ──→  step
+  S = 65536         (FP16)           (FP32)
+
+S halves after overflow, doubles every 2000 clean steps.
+```
+
 ---
 
 ## ⚙️ Hardware
@@ -115,9 +224,9 @@ Right of ridge → compute is the bottleneck   → use tensor cores, quantise
 All capstones are developed and tested on:
 
 ```
-GPU  : NVIDIA RTX PRO 2000 Blackwell
-VRAM : 15.5 GiB
-CUDA : 12.8
+GPU     : NVIDIA RTX PRO 2000 Blackwell
+VRAM    : 15.5 GiB
+CUDA    : 12.8
 PyTorch : 2.11.0+cu128
 Python  : 3.12
 ```
@@ -131,11 +240,11 @@ Python  : 3.12
 git clone https://github.com/lalitprasadperi/torch_forge.git
 cd torch_forge
 
-# Each capstone uses the rtx2000 venv (already set up on this machine)
+# Activate the venv (has torch + torchvision + numpy + pillow)
 source /home/jmd/venvs/rtx2000/bin/activate
 
-# Or install fresh from requirements.txt
-pip install -r Capstone1/requirements.txt
+# Or add to ~/.bashrc so it activates automatically
+echo 'source /home/jmd/venvs/rtx2000/bin/activate' >> ~/.bashrc
 ```
 
 ---
