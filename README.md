@@ -516,6 +516,160 @@ PagedAttention (OS-style paging):
 
 ---
 
+## 📚 Reading List & Recommended Resources
+
+### Per-Capstone Reading
+
+#### Capstone 1 — Performance Lab
+
+| Topic | Reading | Priority |
+|-------|---------|----------|
+| Tensor Basics | Deep Learning with PyTorch (Ch. 1–3) | ★★★★☆ |
+| Tensor API | PyTorch Tensor Documentation | ★★★★★ |
+| Memory Layout | PyTorch Storage & Strides docs | ★★★★★ |
+| Benchmarking | `torch.utils.benchmark` docs | ★★★★★ |
+| Profiling | PyTorch Profiler Tutorial | ★★★★★ |
+| CUDA | CUDA Programming Guide (Memory & Streams chapters) | ★★★★☆ |
+| Source | `aten/src/ATen` | ★★★★☆ |
+
+#### Capstone 2 — Mini Training Framework
+
+| Topic | Reading | Priority |
+|-------|---------|----------|
+| Autograd | PyTorch Autograd docs | ★★★★★ |
+| nn.Module | Source: `torch/nn/modules/module.py` | ★★★★★ |
+| Parameters | `nn.Parameter` docs | ★★★★★ |
+| Optimizers | `torch.optim` source | ★★★★☆ |
+| Mixed Precision | AMP docs | ★★★★★ |
+| DataLoader | `torch.utils.data` docs | ★★★★★ |
+| Reproducibility | PyTorch Reproducibility Guide | ★★★★☆ |
+| Checkpointing | Saving & Loading Models docs | ★★★★☆ |
+
+#### Capstone 3 — Mini GPT
+
+| Topic | Reading | Priority |
+|-------|---------|----------|
+| Transformer | Attention Is All You Need | ★★★★★ |
+| GPT | GPT-2 paper | ★★★★★ |
+| RoPE | RoFormer paper | ★★★★★ |
+| RMSNorm | RMSNorm paper | ★★★★☆ |
+| SwiGLU | PaLM paper | ★★★★☆ |
+| FlashAttention | FlashAttention v1 & v2 papers | ★★★★★ |
+| KV Cache | vLLM paper | ★★★★★ |
+| Source | `torch.nn.MultiheadAttention` | ★★★★★ |
+
+#### Capstone 4 — Compiler Stack
+
+| Topic | Reading | Priority |
+|-------|---------|----------|
+| FX Graph | FX documentation | ★★★★★ |
+| TorchDynamo | TorchDynamo docs | ★★★★★ |
+| TorchInductor | TorchInductor design docs | ★★★★★ |
+| Triton | Triton tutorials | ★★★★★ |
+| AOTAutograd | AOTAutograd docs | ★★★★☆ |
+| torch.compile | Official tutorial | ★★★★★ |
+| Source | `torch/_dynamo` | ★★★★★ |
+| Source | `torch/_inductor` | ★★★★★ |
+
+#### Capstone 5 — Mini vLLM
+
+| Topic | Reading | Priority |
+|-------|---------|----------|
+| vLLM | vLLM paper | ★★★★★ |
+| PagedAttention | PagedAttention paper | ★★★★★ |
+| TensorRT-LLM | Technical docs | ★★★★☆ |
+| llama.cpp | Source code | ★★★★☆ |
+| SGLang | Design docs | ★★★★☆ |
+| Quantization | AWQ paper | ★★★★☆ |
+| Quantization | GPTQ paper | ★★★★☆ |
+| FP8 | NVIDIA FP8 paper | ★★★★☆ |
+
+---
+
+### Cross-Cutting: Mathematics
+
+| Topic | Reading | Priority |
+|-------|---------|----------|
+| Matrix calculus | The Matrix Cookbook | ★★★★★ |
+| Linear algebra | Mathematics for Machine Learning | ★★★★☆ |
+| Probability | Murphy: Probabilistic Machine Learning (selected chapters) | ★★★☆☆ |
+| Optimization | Deep Learning — Goodfellow et al. (Ch. 8) | ★★★★☆ |
+| Numerical methods | Numerical Linear Algebra — Trefethen & Bau | ★★★★☆ |
+
+### Cross-Cutting: GPU Programming
+
+| Topic | Reading | Priority |
+|-------|---------|----------|
+| CUDA Architecture | CUDA Programming Guide | ★★★★★ |
+| Occupancy | CUDA Best Practices Guide | ★★★★★ |
+| Shared Memory | CUDA Programming Guide | ★★★★★ |
+| Tensor Cores | NVIDIA whitepapers | ★★★★★ |
+| Memory Hierarchy | CUDA documentation | ★★★★★ |
+
+### Cross-Cutting: Profiling
+
+| Topic | Reading | Priority |
+|-------|---------|----------|
+| `torch.profiler` | Official docs | ★★★★★ |
+| Nsight Systems | User Guide | ★★★★★ |
+| Nsight Compute | User Guide | ★★★★★ |
+| NVTX | CUDA docs | ★★★★☆ |
+| Perfetto | Official documentation | ★★★★☆ |
+
+---
+
+### PyTorch Source Code Reading Order
+
+Rather than reading the repository top-to-bottom, follow this sequence:
+
+| Week | Directory | Why |
+|------|-----------|-----|
+| 1 | `torch/tensor.py` | Tensor API |
+| 2 | `torch/nn/modules/` | Neural network abstractions |
+| 3 | `torch/optim/` | Optimization algorithms |
+| 4 | `torch/utils/data/` | Data pipeline |
+| 5 | `torch/autograd/` | Automatic differentiation |
+| 6 | `c10/` | Dispatch and core infrastructure |
+| 7 | `aten/` | Native tensor operators |
+| 8 | `torch/_dynamo/` | Graph capture |
+| 9 | `torch/_inductor/` | Compiler backend |
+| 10 | `torch/csrc/` | Python/C++ interface |
+
+---
+
+### Recommended Courses
+
+| Course | Why | Priority |
+|--------|-----|----------|
+| Official PyTorch Tutorials | Best coverage of the framework | ★★★★★ |
+| Stanford CS231n | Vision models and training fundamentals | ★★★★☆ |
+| Stanford CS224N | Transformers and language models | ★★★★★ |
+| CMU 11-785 (Deep Learning) | Advanced training and systems | ★★★★★ |
+| Stanford CS336 (LLMs) | Modern LLM architecture and training | ★★★★★ |
+| Hugging Face Course | Transformers in practice | ★★★★☆ |
+| NVIDIA Deep Learning Institute | GPU optimization (CUDA/PyTorch) | ★★★★☆ |
+
+---
+
+### Papers Worth Reading End-to-End
+
+These are the papers not to skip:
+
+1. **Attention Is All You Need** — Vaswani et al. 2017
+2. **FlashAttention** — Dao et al. 2022
+3. **FlashAttention-2** — Dao 2023
+4. **RoFormer** — Su et al. 2021 (RoPE)
+5. **Root Mean Square Layer Normalization** — Zhang & Sennrich 2019
+6. **PagedAttention / vLLM** — Kwon et al. 2023
+7. **QLoRA** — Dettmers et al. 2023 (NF4 quantization)
+8. **AWQ** — Lin et al. 2023 (activation-aware weight quantization)
+9. **GPTQ** — Frantar et al. 2022 (post-training quantization)
+10. **TorchDynamo** — Ansel et al. 2023
+11. **TorchInductor** — PyTorch compiler design docs
+12. **Triton** — Tillet et al. 2019 (tiled neural network compiler)
+
+---
+
 ## ⚙️ Hardware
 
 All capstones are developed and tested on:
